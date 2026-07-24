@@ -10,7 +10,7 @@
     <a href="https://packagist.org/packages/akunbeben/eloquent-file"><img src="https://img.shields.io/packagist/dt/akunbeben/eloquent-file.svg?style=flat-square" alt="Total Downloads"></a>
 </p>
 
-Read SQL file fluently just like a real Database using Eloquent ORM or Query Builder
+Query a MySQL or MariaDB SQL dump with Laravel's Query Builder and Eloquent, without restoring it to a database server. The dump is loaded into a read-only, in-memory SQLite connection.
 
 ## Installation
 
@@ -20,23 +20,60 @@ You can install the package via Composer:
 composer require akunbeben/eloquent-file
 ```
 
-You may publish all of the package's resources at once:
-
-```bash
-php artisan vendor:publish --tag="eloquent-file"
-```
-
-Or, you may publish each resource individually:
-
-### Publishing the Configuration File
-
-```bash
-php artisan vendor:publish --tag="eloquent-file-config"
-```
+The PHP PDO SQLite extension must be enabled. Laravel discovers the package automatically.
 
 ## Usage
 
-<!-- Add a basic usage example here. -->
+Open a dump, then query it with the package facade:
+
+```php
+use EloquentFile\EloquentFile\Facades\EloquentFile;
+
+EloquentFile::open(storage_path('backups/backup.sql'));
+
+$activeUsers = EloquentFile::table('users')
+    ->where('status', 'Active')
+    ->orderBy('name')
+    ->get();
+```
+
+The loaded connection is registered as `eloquent-file`, so it can be used by an Eloquent model:
+
+```php
+use Illuminate\Database\Eloquent\Model;
+
+class ArchivedUser extends Model
+{
+    protected $connection = 'eloquent-file';
+
+    protected $table = 'users';
+}
+
+EloquentFile::open(storage_path('backups/backup.sql'));
+
+$user = ArchivedUser::find(1);
+```
+
+For dependency injection, use the underlying service directly. A custom connection name may be passed as the second argument:
+
+```php
+use EloquentFile\EloquentFile\EloquentFile;
+
+$dump = app(EloquentFile::class)->open(
+    storage_path('backups/backup.sql'),
+    'archive',
+);
+
+$total = $dump->table('invoices')->sum('total');
+```
+
+Write operations throw an `Illuminate\Database\QueryException`. Opening another dump with the same connection name replaces the previous in-memory connection.
+
+### Supported Dumps
+
+The reader supports standard MySQL and MariaDB table dumps containing backtick-quoted `CREATE TABLE` and `INSERT INTO ... VALUES` statements, including extended inserts and MySQL string escapes. Input is streamed while the resulting database is held in memory.
+
+MySQL-specific indexes, constraints, generated expressions, procedures, triggers, and views are not recreated. Queries use SQLite semantics, so raw MySQL-only SQL is not portable. Read-only mode prevents application writes; it is not a security sandbox for untrusted PHP code.
 
 ## Changelog
 

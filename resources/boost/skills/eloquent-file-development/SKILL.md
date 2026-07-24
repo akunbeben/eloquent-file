@@ -1,7 +1,6 @@
 ---
 name: eloquent-file-development
-description: >
-  Configure and apply the Eloquent File package in Laravel applications.
+description: Query MySQL or MariaDB SQL dumps through Laravel Query Builder or Eloquent using Eloquent File.
 license: MIT
 metadata:
   author: Benny Rahmat
@@ -9,33 +8,50 @@ metadata:
 
 # Eloquent File
 
-Use this skill when a Laravel application needs to integrate the Eloquent File package.
+Use this skill when a Laravel application needs read-only access to data in a MySQL or MariaDB dump without restoring it to a database server.
 
 ## Primary Goal
 
-- apply the `akunbeben/eloquent-file` package's public API in the smallest correct way
+- open a table dump and query its data through Laravel's native database APIs
 
 ## Workflow
 
-### 1. Inspect the Laravel app context
+### 1. Confirm the input and runtime
 
-- confirm the app is a Laravel project
-- inspect the target code paths where the package should be applied
+- require `akunbeben/eloquent-file` and confirm PDO SQLite is enabled
+- use a standard MySQL or MariaDB table dump with `CREATE TABLE` and `INSERT INTO ... VALUES` statements
+- consider memory use because the resulting SQLite database is in memory
 
-### 2. Apply the package's public API
+### 2. Open and query the dump
 
-Document how to integrate Eloquent File here, replacing this placeholder with the integration steps for your package.
+- call `EloquentFile::open($path)` before querying
+- use `EloquentFile::table($table)` for Query Builder access
+- use the registered `eloquent-file` connection on Eloquent models
+- pass a second argument to `open()` only when a custom connection name is needed
 
 ## Rules, References, and Templates
 
-Read before executing:
-
-- no additional resource files for this skill
+- facade: `EloquentFile\EloquentFile\Facades\EloquentFile`
+- injectable service: `EloquentFile\EloquentFile\EloquentFile`
+- default connection name: `eloquent-file`
+- write attempts fail with `Illuminate\Database\QueryException`
 
 ## Examples
 
-- describe a representative integration scenario for Eloquent File
+```php
+use EloquentFile\EloquentFile\Facades\EloquentFile;
+
+EloquentFile::open(storage_path('backups/backup.sql'));
+
+$users = EloquentFile::table('users')
+    ->where('status', 'Active')
+    ->get();
+```
+
+For Eloquent, set `protected $connection = 'eloquent-file';` and the dump table name on the model before querying it.
 
 ## Anti-patterns
 
-- do not document package internals here; keep the skill focused on adoption in Laravel apps
+- do not attempt inserts, updates, deletes, migrations, or model saves against the dump connection
+- do not expect MySQL-only raw SQL, indexes, constraints, procedures, triggers, views, or generated expressions to be available
+- do not treat read-only mode as a sandbox for untrusted application code
