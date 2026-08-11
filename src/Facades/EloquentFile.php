@@ -11,6 +11,9 @@ use Illuminate\Support\Facades\Facade;
 /**
  * @method static \EloquentFile\EloquentFile\EloquentFile open(string $path, string $connectionName = 'eloquent-file')
  * @method static Builder table(string $table, ?string $as = null)
+ * @method static array{tables: array<string, array{columns: list<string>}>} schema()
+ * @method static list<string> tables(string $prefix = '')
+ * @method static list<string> columns(string $table, string $prefix = '')
  * @method static Connection connection()
  * @method static string connectionName()
  *

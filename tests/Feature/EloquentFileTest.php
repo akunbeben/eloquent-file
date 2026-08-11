@@ -73,6 +73,39 @@ it('queries a SQL dump with Laravel query builder', function () {
         ->and($postCounts)->toBe(['Alice' => 2, "O'Reilly" => 1]);
 });
 
+it('provides schema metadata for integrations', function () {
+    $database = openDump(exampleDump());
+
+    expect($database->schema())->toBe([
+        'tables' => [
+            'posts' => [
+                'columns' => ['id', 'user_id', 'title'],
+            ],
+            'users' => [
+                'columns' => ['id', 'name', 'balance', 'deleted_at'],
+            ],
+        ],
+    ])
+        ->and($database->tables('US'))->toBe(['users'])
+        ->and($database->columns('users', 'NA'))->toBe(['name']);
+});
+
+it('refreshes schema metadata when another dump is opened', function () {
+    $database = openDump("CREATE TABLE `first` (\n  `id` int NOT NULL\n);\n");
+
+    expect($database->tables())->toBe(['first']);
+
+    $database = openDump("CREATE TABLE `second` (\n  `name` varchar(255) NOT NULL\n);\n");
+
+    expect($database->schema())->toBe([
+        'tables' => [
+            'second' => [
+                'columns' => ['name'],
+            ],
+        ],
+    ]);
+});
+
 it('registers the dump as an Eloquent connection', function () {
     $database = openDump(exampleDump());
     $model = new class extends Model
