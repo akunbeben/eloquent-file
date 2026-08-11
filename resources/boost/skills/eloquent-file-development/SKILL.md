@@ -29,6 +29,12 @@ Use this skill when a Laravel application needs read-only access to data in a My
 - use the registered `eloquent-file` connection on Eloquent models
 - pass a second argument to `open()` only when a custom connection name is needed
 
+### 3. Discover schema for integrations
+
+- call `schema()` for a JSON-friendly map of loaded tables and columns
+- call `tables($prefix)` to suggest table names
+- call `columns($table, $prefix)` to suggest fields for a table
+
 ## Rules, References, and Templates
 
 - facade: `EloquentFile\EloquentFile\Facades\EloquentFile`
@@ -48,10 +54,21 @@ $users = EloquentFile::table('users')
     ->get();
 ```
 
+For an integration or AI tool:
+
+```php
+$dump = EloquentFile::open(storage_path('backups/backup.sql'));
+
+$context = $dump->schema();
+$tableSuggestions = $dump->tables('user');
+$fieldSuggestions = $dump->columns('users', 'na');
+```
+
 For Eloquent, set `protected $connection = 'eloquent-file';` and the dump table name on the model before querying it.
 
 ## Anti-patterns
 
 - do not attempt inserts, updates, deletes, migrations, or model saves against the dump connection
 - do not expect MySQL-only raw SQL, indexes, constraints, procedures, triggers, views, or generated expressions to be available
+- do not treat schema metadata as a source of MySQL relationships or constraints; the loader exposes the recreated SQLite tables and columns
 - do not treat read-only mode as a sandbox for untrusted application code

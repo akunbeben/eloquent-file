@@ -18,6 +18,11 @@ class EloquentFile
 
     private ?string $connectionName = null;
 
+    /**
+     * @var array{tables: array<string, array{columns: list<string>}>}|null
+     */
+    private ?array $schema = null;
+
     public function __construct(
         private readonly DatabaseManager $database,
         private readonly SqlDumpLoader $loader,
@@ -35,6 +40,7 @@ class EloquentFile
 
         $this->connection = null;
         $this->connectionName = null;
+        $this->schema = null;
 
         $connection = $this->database->connectUsing($connectionName, [
             'driver' => 'sqlite',
@@ -67,6 +73,53 @@ class EloquentFile
         return $this->connection()->table($table, $as);
     }
 
+    /**
+     * Return the loaded tables and their columns for integrations.
+     *
+     * @return array{tables: array<string, array{columns: list<string>}>}
+     */
+    public function schema(): array
+    {
+        if ($this->schema !== null) {
+            return $this->schema;
+        }
+
+        $schema = $this->connection()->getSchemaBuilder();
+        $tables = [];
+
+        foreach ($schema->getTables() as $table) {
+            $name = $table['name'];
+
+            $tables[$name] = [
+                'columns' => $schema->getColumnListing($name),
+            ];
+        }
+
+        return $this->schema = ['tables' => $tables];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function tables(string $prefix = ''): array
+    {
+        return $this->matching(array_keys($this->schema()['tables']), $prefix);
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function columns(string $table, string $prefix = ''): array
+    {
+        foreach ($this->schema()['tables'] as $name => $definition) {
+            if (strcasecmp($name, $table) === 0) {
+                return $this->matching($definition['columns'], $prefix);
+            }
+        }
+
+        return [];
+    }
+
     public function connection(): Connection
     {
         return $this->connection
@@ -77,5 +130,19 @@ class EloquentFile
     {
         return $this->connectionName
             ?? throw new LogicException('Open a SQL dump before querying it.');
+    }
+
+    /**
+     * @param  list<string>  $values
+     * @return list<string>
+     */
+    private function matching(array $values, string $prefix): array
+    {
+        $prefix = strtolower($prefix);
+
+        return array_values(array_filter(
+            $values,
+            fn (string $value): bool => str_starts_with(strtolower($value), $prefix),
+        ));
     }
 }

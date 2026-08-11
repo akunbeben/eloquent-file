@@ -67,6 +67,20 @@ $dump = app(EloquentFile::class)->open(
 $total = $dump->table('invoices')->sum('total');
 ```
 
+### Schema and Completion Metadata
+
+The loaded dump exposes JSON-friendly metadata for integrations and AI tools without any additional configuration:
+
+```php
+$dump = EloquentFile::open(storage_path('backups/backup.sql'));
+
+$schema = $dump->schema();
+$tables = $dump->tables('user');
+$fields = $dump->columns('users', 'na');
+```
+
+`schema()` returns table names and column names. `tables()` and `columns()` filter suggestions by a case-insensitive prefix. Query clauses remain available through Laravel's native Query Builder. The metadata does not include MySQL indexes, constraints, or relationships that are not recreated in SQLite.
+
 Write operations throw an `Illuminate\Database\QueryException`. Opening another dump with the same connection name replaces the previous in-memory connection.
 
 ### Supported Dumps
