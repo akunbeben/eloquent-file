@@ -329,7 +329,7 @@ class EloquentFile
         for ($attempt = 0; $attempt < 5; $attempt++) {
             clearstatcache(true, $path);
 
-            if (! is_file($path) || @unlink($path) || ! is_file($path)) {
+            if (! is_file($path) || @unlink($path)) {
                 return;
             }
 
