@@ -13,6 +13,20 @@ class EloquentFileServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        $this->mergeConfigFrom(__DIR__.'/../config/eloquent-file.php', 'eloquent-file');
+
         $this->app->singleton(EloquentFile::class);
+    }
+
+    /**
+     * Bootstrap any package services.
+     */
+    public function boot(): void
+    {
+        if ($this->app->runningInConsole()) {
+            $this->publishes([
+                __DIR__.'/../config/eloquent-file.php' => config_path('eloquent-file.php'),
+            ], 'eloquent-file-config');
+        }
     }
 }

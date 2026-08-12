@@ -3,6 +3,10 @@
 ## [Unreleased](https://github.com/akunbeben/eloquent-file/compare/v0.1.2...HEAD)
 
 - Added schema metadata and table/column prefix suggestions for integrations and AI tools.
+- Changed the default dump storage to a temporary file-backed SQLite database for large dumps.
+- Added configurable temporary-directory cleanup, stale-file removal, free-space checks, and explicit `close()` lifecycle management.
+- Added a reproducible `composer benchmark` command with human-readable and JSON output.
+- Cached prepared INSERT statements during imports to reduce repeated preparation overhead.
 
 ## [v0.1.2](https://github.com/akunbeben/eloquent-file/compare/v0.1.1...v0.1.2) - 2026-08-11
 

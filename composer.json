@@ -71,6 +71,9 @@
         "analyse": [
             "vendor/bin/phpstan analyse"
         ],
+        "benchmark": [
+            "@php scripts/benchmark.php"
+        ],
         "test:types": [
             "vendor/bin/pest --type-coverage --min=100"
         ],
@@ -103,6 +106,12 @@
             "pestphp/pest-plugin": true,
             "phpstan/extension-installer": true
         }
+    },
+    "archive": {
+        "exclude": [
+            "/sample.sql",
+            "/backup.sql"
+        ]
     },
     "minimum-stability": "stable",
     "prefer-stable": true
