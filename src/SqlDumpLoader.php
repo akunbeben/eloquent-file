@@ -17,6 +17,7 @@ final class SqlDumpLoader
     {
         $file = new SplFileObject($path, 'rb');
         $schemas = [];
+        $statements = [];
         $createTable = null;
         $createColumns = [];
         $insertTable = null;
@@ -113,16 +114,7 @@ final class SqlDumpLoader
                     throw new UnexpectedValueException("INSERT for table [$insertTable] has no readable columns.");
                 }
 
-                $statement = $connection->getPdo()->prepare(sprintf(
-                    'INSERT INTO %s (%s) VALUES (%s)',
-                    $this->quote($insertTable),
-                    implode(', ', array_map($this->quote(...), $columns)),
-                    implode(', ', array_fill(0, count($columns), '?')),
-                ));
-
-                if (! $statement instanceof PDOStatement) {
-                    throw new RuntimeException("Unable to prepare INSERT for table [$insertTable].");
-                }
+                $statement = $this->insertStatement($connection, $insertTable, $columns, $statements);
 
                 $ended = $this->insertRows(
                     $insert[3],
@@ -158,6 +150,36 @@ final class SqlDumpLoader
                 $exception->getMessage(),
             ), previous: $exception);
         }
+    }
+
+    /**
+     * @param  list<string>  $columns
+     * @param  array<string, PDOStatement>  $statements
+     */
+    private function insertStatement(
+        Connection $connection,
+        string $table,
+        array $columns,
+        array &$statements,
+    ): PDOStatement {
+        $key = $table."\0".implode("\0", $columns);
+
+        if (isset($statements[$key])) {
+            return $statements[$key];
+        }
+
+        $statement = $connection->getPdo()->prepare(sprintf(
+            'INSERT INTO %s (%s) VALUES (%s)',
+            $this->quote($table),
+            implode(', ', array_map($this->quote(...), $columns)),
+            implode(', ', array_fill(0, count($columns), '?')),
+        ));
+
+        if (! $statement instanceof PDOStatement) {
+            throw new RuntimeException("Unable to prepare INSERT for table [$table].");
+        }
+
+        return $statements[$key] = $statement;
     }
 
     /**

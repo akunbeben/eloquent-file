@@ -20,7 +20,9 @@ Use this skill when a Laravel application needs read-only access to data in a My
 
 - require `akunbeben/eloquent-file` and confirm PDO SQLite is enabled
 - use a standard MySQL or MariaDB table dump with `CREATE TABLE` and `INSERT INTO ... VALUES` statements
-- consider memory use because the resulting SQLite database is in memory
+- use the default temporary file-backed SQLite storage for large dumps; configure `eloquent-file.temporary_directory` when needed
+- abandoned package-owned temporary databases are cleaned up after 24 hours by default
+- imports require free space for the dump plus a default 100 MB safety buffer
 
 ### 2. Open and query the dump
 
@@ -62,12 +64,18 @@ $dump = EloquentFile::open(storage_path('backups/backup.sql'));
 $context = $dump->schema();
 $tableSuggestions = $dump->tables('user');
 $fieldSuggestions = $dump->columns('users', 'na');
+
+foreach ($dump->table('users')->orderBy('id')->cursor() as $user) {
+    // Process one row at a time without materializing the full result.
+}
 ```
 
 For Eloquent, set `protected $connection = 'eloquent-file';` and the dump table name on the model before querying it.
 
 ## Anti-patterns
 
+- `table()` keeps Laravel's normal Query Builder behavior; use `cursor()` or `lazy()` explicitly for large result sets
+- call `$dump->close()` when a long-lived worker no longer needs the dump
 - do not attempt inserts, updates, deletes, migrations, or model saves against the dump connection
 - do not expect MySQL-only raw SQL, indexes, constraints, procedures, triggers, views, or generated expressions to be available
 - do not treat schema metadata as a source of MySQL relationships or constraints; the loader exposes the recreated SQLite tables and columns

@@ -5,8 +5,9 @@ declare(strict_types=1);
 use EloquentFile\EloquentFile\EloquentFile;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\DB;
 
-function openDump(string $sql): EloquentFile
+function openDump(string $sql, string $connectionName = 'eloquent-file'): EloquentFile
 {
     $path = tempnam(sys_get_temp_dir(), 'eloquent-file-');
 
@@ -15,7 +16,7 @@ function openDump(string $sql): EloquentFile
     }
 
     try {
-        return app(EloquentFile::class)->open($path);
+        return app(EloquentFile::class)->open($path, $connectionName);
     } finally {
         unlink($path);
     }
@@ -72,6 +73,105 @@ it('queries a SQL dump with Laravel query builder', function () {
     expect($users)->toBe(['Alice', "Line\nbreak"])
         ->and($postCounts)->toBe(['Alice' => 2, "O'Reilly" => 1]);
 });
+
+it('streams rows with Laravel cursor', function () {
+    $database = openDump(exampleDump());
+
+    expect($database->table('users')->orderBy('id')->cursor()->pluck('name')->all())
+        ->toBe(['Alice', "O'Reilly", "Line\nbreak"]);
+});
+
+it('uses a file-backed SQLite database by default', function () {
+    $database = openDump(exampleDump());
+    $connection = $database->connection();
+    $path = $connection->getConfig('database');
+
+    file_put_contents($path.'-journal', 'journal');
+    file_put_contents($path.'-wal', 'wal');
+    file_put_contents($path.'-shm', 'shm');
+
+    expect($path)
+        ->not->toBe(':memory:')
+        ->and(is_file($path))->toBeTrue();
+
+    $database->close();
+
+    expect(is_file($path))->toBeFalse()
+        ->and(is_file($path.'-journal'))->toBeFalse()
+        ->and(is_file($path.'-wal'))->toBeFalse()
+        ->and(is_file($path.'-shm'))->toBeFalse();
+});
+
+it('does not replace an application-owned connection', function () {
+    config()->set('database.connections.taken', [
+        'driver' => 'sqlite',
+        'database' => ':memory:',
+    ]);
+
+    $hostConnection = DB::connection('taken');
+    $hostConnection->statement('CREATE TABLE host_data (value TEXT)');
+    $hostConnection->table('host_data')->insert(['value' => 'preserved']);
+
+    expect(fn () => openDump(exampleDump(), 'taken'))
+        ->toThrow(RuntimeException::class, 'Cannot establish connection [taken] because another connection with that name already exists.');
+
+    expect($hostConnection->table('host_data')->value('value'))->toBe('preserved');
+});
+
+it('does not close an application-owned connection by name', function () {
+    config()->set('database.connections.taken', [
+        'driver' => 'sqlite',
+        'database' => ':memory:',
+    ]);
+
+    $hostConnection = DB::connection('taken');
+    $hostConnection->statement('CREATE TABLE host_data (value TEXT)');
+    $hostConnection->table('host_data')->insert(['value' => 'preserved']);
+
+    app(EloquentFile::class)->close('taken');
+
+    expect($hostConnection->table('host_data')->value('value'))->toBe('preserved');
+});
+
+it('supports memory storage for small dumps', function () {
+    config()->set('eloquent-file.storage', 'memory');
+
+    $database = openDump(exampleDump());
+
+    expect($database->connection()->getConfig('database'))->toBe(':memory:');
+});
+
+it('cleans up stale file-backed databases', function () {
+    $directory = sys_get_temp_dir().'/eloquent-file-stale-'.bin2hex(random_bytes(8));
+    mkdir($directory);
+
+    $stalePath = $directory.'/eloquent-file-'.str_repeat('a', 32).'.sqlite';
+    file_put_contents($stalePath, 'stale');
+    touch($stalePath, time() - 90000);
+
+    config()->set('eloquent-file.temporary_directory', $directory);
+    config()->set('eloquent-file.cleanup.max_age', 3600);
+
+    try {
+        $database = openDump(exampleDump());
+        $databasePath = $database->connection()->getConfig('database');
+
+        expect(is_file($stalePath))->toBeFalse();
+
+        $database->close();
+        expect(is_file($databasePath))->toBeFalse();
+    } finally {
+        if (is_dir($directory)) {
+            rmdir($directory);
+        }
+    }
+});
+
+it('rejects a dump when the configured free space buffer cannot be met', function () {
+    config()->set('eloquent-file.cleanup.free_space_buffer', PHP_INT_MAX);
+
+    openDump(exampleDump());
+})->throws(RuntimeException::class, 'does not have enough free space');
 
 it('provides schema metadata for integrations', function () {
     $database = openDump(exampleDump());
